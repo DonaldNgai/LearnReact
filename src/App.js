@@ -70,6 +70,7 @@ const Dropzone = ({ onDrop, accept }) => {
 function handleOnDrop(acceptedFiles, images, setImages)
 {
     console.log("Handle onDrop")
+    console.log(acceptedFiles); 
     acceptedFiles.map(file => {
         // Initialize FileReader Browser API
         const reader = new FileReader();
@@ -97,7 +98,6 @@ function DropAudioApp(){
 
     const onDrop = useCallback(acceptedFiles => {
         // this callback will be called after files get dropped, we will get the acceptedFiles. If you want, you can even access the rejected files too
-        console.log(acceptedFiles);
         handleOnDrop(acceptedFiles, images, setImages);
     }, []);
 
@@ -106,7 +106,7 @@ function DropAudioApp(){
         <main className="App">
             <h1 className="text-center">Drag and Drop Example</h1>
             <Dropzone onDrop={onDrop} accept={acceptedFormats} />
-            <button onclick={() => handleOnDrop("logo192.png", images, setImages)}>ADD IMAGE</button>
+            <button onClick={() => handleOnDrop([new File([""], "logo192.png")], images, setImages)}>ADD IMAGE</button>
             <ImageList images={images} />
         </main>
     );
