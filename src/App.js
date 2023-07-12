@@ -1,4 +1,9 @@
-import {useCallback, useState} from 'react';
+import React, {useCallback, useState, useRef} from 'react';
+import {DndProvider} from "react-dnd"
+import {HTML5Backend} from "react-dnd-html5-backend";
+import {TouchBackend} from "react-dnd-touch-backend";
+import { useDrag, useDrop } from "react-dnd";
+import update from "immutability-helper";
 import logo from './logo.svg'; // Give logo a link from a variable
 import './App.css';
 
@@ -6,35 +11,121 @@ import './App.css';
 import { useDropzone } from "react-dropzone"
 // Import cuid which allows easy Unique ID generation
 import cuid from "cuid"
-
+// Need to pass which type element can be draggable, its a simple string or Symbol. This is like an Unique ID so that the library know what type of element is dragged or dropped on.
+const dragType = "Image"; 
 let acceptedFormats = 'application/pdf, image/*';
-// Create a state called images using useState hooks and pass the initial value as empty array
-// States are important in react as it tells when the DOM model gets
-// Re-rendered. It rerenders when a state changes
 
+// Function to allow easy debugging as we can upload an image by clicking a button
 var uploadImageToServer = async (path, images, setImages) => {
     const resp = await fetch(path);
     const blob = await resp.blob();
     handleOnDrop([blob], images, setImages);
 }
 
+//Figure out splice and unique id
 
-const Image = ({ image }) => {
+// simple way to check whether the device support touch (it doesn't check all fallback, it supports only modern browsers)
+const isTouchDevice = () => {
+  if ("ontouchstart" in window) {
+    return true;
+  }
+  return false;
+};
+
+// Create a state called images using useState hooks and pass the initial value as empty array
+// States are important in react as it tells when the DOM model gets
+// Re-rendered. It rerenders when a state changes
+const Image = ({ image, index, moveImage }) => {
+    const ref = useRef(null); // Initialize the reference
+
+    // useDrop hook is responsible for handling whether any item gets hovered or dropped on the element
+    // useDrop provides a reference returned "drop" which we can use to identify what is droppable
+    const [, drop] = useDrop({
+        // Accept will make sure only these element type can be droppable on this element
+        accept: dragType,
+        // Called when an item is hovered over the component
+        hover(item) { // item is the dragged element hovering over component
+            // If somehow ref is invalid, don't do anything.
+            if (!ref.current) {
+                return;
+            }
+
+            const dragIndex = item.index; // index of dragged component
+            const hoverIndex = index; // index of component hovered on
+            // If the dragged element is hovered in the same place, then do nothing
+            if (dragIndex === hoverIndex) { 
+                return;
+            }
+
+            // If it is dragged around other elements, then move the image and set the state with position changes
+            moveImage(dragIndex, hoverIndex);
+            /*
+            Update the index for dragged item directly to avoid flickering
+            when the image was half dragged into the next
+            */
+            item.index = hoverIndex;
+        }
+    });
+
+    // useDrag will be responsible for making an element draggable. It also expose, isDragging method to add any styles while dragging
+    const [{ isDragging }, drag] = useDrag(() => ({
+        // what type of item this to determine if a drop target accepts it
+        type: dragType,
+        // data of the item to be available to the drop methods
+        item: { id: image.id, index },
+        // method to collect additional data for drop handling like whether is currently being dragged
+        collect: (monitor) => {
+          return {
+            isDragging: monitor.isDragging(), // This is destructuring?
+          };
+        },
+    }));
+
+    /* 
+        Initialize drag and drop into the element using its reference.
+        Here we initialize both drag and drop on the same element (i.e., Image component)
+    */
+    drag(drop(ref));
+
     return (
-        <div className="file-item">
+        // Add reference to the element to be dragged
+        <div className="file-item"
+        ref={ref}
+        style={{ opacity: isDragging ? 0 : 1 }}
+        >
             <img alt={'img - ${image.id}'} src={image.src} className="file-img" />
         </div>
     );
 };
 
-const ImageList = ({ images }) => {
+const ImageList = ({ images, setImages }) => {
     console.log("Rendering imagelist")
     console.log(images)
-      // render each image by calling Image component
-    const renderImage = ( image, index ) => {
-        return(
-            <Image image={image} key={'${image.id}-image'}/>
+
+    // Helper function for when we drag an image and need to move it
+    // Placing it here so we have access to images list
+    const moveImage = (dragIndex, hoverIndex) => {
+        // Get the dragged element
+        const draggedImage = images[dragIndex];
+        /*
+          - copy the dragged image before hovered element (i.e., [hoverIndex, 0, draggedImage])
+          - remove the previous reference of dragged element (i.e., [dragIndex, 1])
+          - here we are using this update helper method from immutability-helper package
+        */
+        // setImages is the state updater function
+        setImages(
+            // Use immutability helper update function
+            update(images, {
+                $splice: [[dragIndex, 1], [hoverIndex, 0, draggedImage]]
+            })
         );
+    };
+
+    // render each image by calling Image component
+    const renderImage = ( image, index ) => {
+        return image ? (
+            <Image image={image} index={index} key={'${image.id}-image'} moveImage={moveImage}/>
+        ): null;
     };
 
     // Return the list of files
@@ -102,7 +193,11 @@ function handleOnDrop(acceptedFiles, images, setImages)
 }
 
 function DropAudioApp(){
+    // This can't be globally defined as it is a react hook so it must exist within function
     const [images, setImages] = useState([]); 
+    // Assigning backend based on touch support on the device
+    const backendForDND = isTouchDevice() ? TouchBackend : HTML5Backend;
+
     // let blob = getFileBlob("logo192.png");
     // let blob = new File("./logo192.png")
     let filePath = "./logo192.png"
@@ -118,7 +213,9 @@ function DropAudioApp(){
             <h1 className="text-center">Drag and Drop Example</h1>
             <Dropzone onDrop={onDrop} accept={acceptedFormats} />
             <button onClick={() => uploadImageToServer(filePath, images, setImages)}>ADD IMAGE</button>
-            <ImageList images={images} />
+            <DndProvider backend={backendForDND}>
+                <ImageList images={images} setImages={setImages} />
+            </DndProvider>
         </main>
     );
 };
