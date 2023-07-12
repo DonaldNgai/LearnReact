@@ -12,6 +12,12 @@ let acceptedFormats = 'application/pdf, image/*';
 // States are important in react as it tells when the DOM model gets
 // Re-rendered. It rerenders when a state changes
 
+var uploadImageToServer = async (path, images, setImages) => {
+    const resp = await fetch(path);
+    const blob = await resp.blob();
+    handleOnDrop([blob], images, setImages);
+}
+
 
 const Image = ({ image }) => {
     return (
@@ -23,6 +29,7 @@ const Image = ({ image }) => {
 
 const ImageList = ({ images }) => {
     console.log("Rendering imagelist")
+    console.log(images)
       // render each image by calling Image component
     const renderImage = ( image, index ) => {
         return(
@@ -70,7 +77,7 @@ const Dropzone = ({ onDrop, accept }) => {
 function handleOnDrop(acceptedFiles, images, setImages)
 {
     console.log("Handle onDrop")
-    console.log(acceptedFiles); 
+
     acceptedFiles.map(file => {
         // Initialize FileReader Browser API
         const reader = new FileReader();
@@ -85,16 +92,20 @@ function handleOnDrop(acceptedFiles, images, setImages)
             // and update it. 
             setImages(prevState => [ ...prevState, { id: cuid(), src: e.target.result }]);
             console.log("Read. Setting images");
-            // Read the file as Data URL (since we accept only images)
-            reader.readAsDataURL(file);
-            console.log(`File: ${file}`);
-            return file;
+            
         };
+        // Read the file as Data URL (since we accept only images)
+        reader.readAsDataURL(file);
+        console.log(file);
+        return file;
     }, []);
 }
 
 function DropAudioApp(){
     const [images, setImages] = useState([]); 
+    // let blob = getFileBlob("logo192.png");
+    // let blob = new File("./logo192.png")
+    let filePath = "./logo192.png"
 
     const onDrop = useCallback(acceptedFiles => {
         // this callback will be called after files get dropped, we will get the acceptedFiles. If you want, you can even access the rejected files too
@@ -106,7 +117,7 @@ function DropAudioApp(){
         <main className="App">
             <h1 className="text-center">Drag and Drop Example</h1>
             <Dropzone onDrop={onDrop} accept={acceptedFormats} />
-            <button onClick={() => handleOnDrop([new File([""], "logo192.png")], images, setImages)}>ADD IMAGE</button>
+            <button onClick={() => uploadImageToServer(filePath, images, setImages)}>ADD IMAGE</button>
             <ImageList images={images} />
         </main>
     );
